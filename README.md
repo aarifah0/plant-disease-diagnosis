@@ -253,6 +253,26 @@ The **confusion matrix** is row-normalised to recall: cell $(i, j)$ shows the fr
 
 ---
 
+## Scope and Limitations
+
+The model was trained exclusively on the PlantVillage dataset, which uses controlled laboratory conditions (plain grey or black backgrounds, consistent lighting). This has two important implications:
+
+**Supported plants:** The model only recognises leaves from these 14 species:
+
+> Apple · Blueberry · Cherry · Corn · Grape · Orange · Peach · Bell Pepper · Potato · Raspberry · Soybean · Squash · Strawberry · Tomato
+
+**Input requirements for reliable results:**
+- The leaf should be the main subject of the photo, ideally against a plain background
+- Field photographs with complex backgrounds, shadows, or partial occlusion will perform worse
+- Non-leaf images will still receive a prediction — the model has no rejection mechanism for out-of-distribution inputs
+
+**Not supported:**
+- Any plant species outside the 14 above
+- Severity grading (mild / moderate / severe) — only disease type is predicted
+- Real-time video or camera feed — static image upload only
+
+---
+
 ## Dataset
 
 **New Plant Diseases Dataset** (PlantVillage) — available on [Kaggle](https://www.kaggle.com/datasets/vipoooool/new-plant-diseases-dataset).
