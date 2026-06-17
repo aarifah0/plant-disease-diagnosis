@@ -1,0 +1,9 @@
+{
+  "overall_accuracy": 0.8982,
+  "macro_precision": 0.9021,
+  "macro_recall": 0.8982,
+  "macro_f1": 0.8951,
+  "weighted_f1": 0.8953,
+  "n_samples": 17572,
+  "inference_seconds_total": 5458.4
+}
