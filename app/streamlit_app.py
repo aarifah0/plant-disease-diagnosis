@@ -11,9 +11,85 @@ from src.predict import Predictor
 from src.preprocess import ImageValidationError, load_image, validate_upload
 from src.utils import DEFAULT_WEIGHTS_PATH, MAX_UPLOAD_SIZE_MB
 
-st.set_page_config(page_title="Plant Disease Detector", page_icon="🌿", layout="centered")
+st.set_page_config(
+    page_title="Plant Disease Detector",
+    page_icon="🌿",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+# ── custom CSS ────────────────────────────────────────────────────────────────
+
+st.markdown("""
+<style>
+    /* page padding */
+    .block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 1100px; }
+
+    /* hide streamlit branding */
+    #MainMenu, footer { visibility: hidden; }
+
+    /* header */
+    .app-header { text-align: center; padding: 1.5rem 0 0.5rem 0; }
+    .app-header h1 { font-size: 2.4rem; font-weight: 700; color: #1E4D2B; margin-bottom: 0.2rem; }
+    .app-header p  { font-size: 1.05rem; color: #555; margin-top: 0; }
+
+    /* result card */
+    .result-card {
+        background: #F0F7F4;
+        border-left: 5px solid #2D6A4F;
+        border-radius: 8px;
+        padding: 1.2rem 1.4rem;
+        margin-bottom: 1rem;
+    }
+    .result-card h2 { margin: 0 0 0.3rem 0; font-size: 1.4rem; color: #1E4D2B; }
+    .result-card .conf { font-size: 1rem; color: #444; }
+
+    /* prediction mini-cards */
+    .pred-card {
+        background: #fff;
+        border: 1px solid #d4e8dc;
+        border-radius: 8px;
+        padding: 0.9rem 1rem;
+        text-align: center;
+    }
+    .pred-card .rank  { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+    .pred-card .label { font-size: 0.95rem; font-weight: 600; color: #1E4D2B; margin: 0.25rem 0; }
+    .pred-card .pct   { font-size: 1.5rem; font-weight: 700; color: #2D6A4F; }
+
+    /* info section */
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; margin-top: 0.5rem; }
+    .info-block {
+        background: #fff;
+        border: 1px solid #d4e8dc;
+        border-radius: 6px;
+        padding: 0.8rem 1rem;
+    }
+    .info-block .info-label { font-size: 0.75rem; text-transform: uppercase;
+                              letter-spacing: 0.06em; color: #888; margin-bottom: 0.3rem; }
+    .info-block .info-text  { font-size: 0.9rem; color: #222; line-height: 1.5; }
+
+    /* healthy banner */
+    .healthy-banner {
+        background: #d4edda; border: 1px solid #a3d9a5;
+        border-radius: 8px; padding: 1rem 1.2rem;
+        font-size: 1rem; color: #1a4d2e; font-weight: 500;
+    }
+
+    /* divider */
+    hr { border: none; border-top: 1px solid #e0ede6; margin: 1.2rem 0; }
+
+    /* tab styling */
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 6px 6px 0 0;
+        padding: 0.5rem 1.5rem;
+        font-weight: 500;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 CONFIDENCE_BADGE = {"high": "🟢", "medium": "🟡", "low": "🔴"}
+CONFIDENCE_COLOR = {"high": "#1a6b3c", "medium": "#b5770a", "low": "#c0392b"}
 
 
 @st.cache_resource
@@ -25,78 +101,129 @@ def render_result(result: dict):
     top = result["top_prediction"]
     info = top["info"]
     level = top["confidence_level"]
+    conf_pct = top["confidence"] * 100
 
-    st.subheader(f"{CONFIDENCE_BADGE[level]} {top['label']}")
+    # ── top prediction card ──
+    badge = CONFIDENCE_BADGE[level]
+    color = CONFIDENCE_COLOR[level]
+    st.markdown(f"""
+    <div class="result-card">
+        <h2>{badge} {top['label']}</h2>
+        <div class="conf" style="color:{color}; font-weight:600;">
+            {conf_pct:.1f}% confidence &nbsp;·&nbsp; {level.capitalize()} certainty
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    confidence_text = f"Confidence: {top['confidence'] * 100:.1f}%"
-    if level == "high":
-        st.success(confidence_text)
-    elif level == "medium":
-        st.warning(confidence_text)
-    else:
-        st.error(confidence_text)
+    # ── top-3 mini cards ──
+    cols = st.columns(3)
+    ranks = ["1st", "2nd", "3rd"]
+    for col, pred, rank in zip(cols, result["predictions"], ranks):
+        with col:
+            st.markdown(f"""
+            <div class="pred-card">
+                <div class="rank">{rank} prediction</div>
+                <div class="label">{pred['label']}</div>
+                <div class="pct">{pred['confidence']*100:.1f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
 
-    chart_df = pd.DataFrame(
-        {"Confidence (%)": [p["confidence"] * 100 for p in result["predictions"]]},
-        index=[p["label"] for p in result["predictions"]],
-    )
-    st.bar_chart(chart_df)
+    st.markdown("<hr>", unsafe_allow_html=True)
 
+    # ── disease info ──
     if info:
         if not info.get("healthy", False):
-            with st.expander("ℹ️ More info: description, symptoms, treatment, prevention", expanded=True):
-                st.markdown(f"**Description:** {info.get('description', 'N/A')}")
-                st.markdown(f"**Symptoms:** {info.get('symptoms', 'N/A')}")
-                st.markdown(f"**Treatment:** {info.get('treatment', 'N/A')}")
-                st.markdown(f"**Prevention:** {info.get('prevention', 'N/A')}")
+            st.markdown(f"""
+            <div class="info-grid">
+                <div class="info-block">
+                    <div class="info-label">📋 Description</div>
+                    <div class="info-text">{info.get('description', 'N/A')}</div>
+                </div>
+                <div class="info-block">
+                    <div class="info-label">🔍 Symptoms</div>
+                    <div class="info-text">{info.get('symptoms', 'N/A')}</div>
+                </div>
+                <div class="info-block">
+                    <div class="info-label">💊 Treatment</div>
+                    <div class="info-text">{info.get('treatment', 'N/A')}</div>
+                </div>
+                <div class="info-block">
+                    <div class="info-label">🛡️ Prevention</div>
+                    <div class="info-text">{info.get('prevention', 'N/A')}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
         else:
-            st.success("This leaf appears healthy!")
+            st.markdown('<div class="healthy-banner">✅ This leaf appears healthy — no disease detected.</div>',
+                        unsafe_allow_html=True)
 
     st.caption(f"Inference time: {result['inference_seconds'] * 1000:.0f} ms")
 
 
 def single_image_tab():
-    uploaded_file = st.file_uploader("Choose a leaf image", type=["jpg", "jpeg", "png"])
+    col_upload, col_result = st.columns([1, 1], gap="large")
 
-    if uploaded_file is None:
-        st.info(f"Upload an image to get started. Supported: JPG, PNG, JPEG | Max size: {MAX_UPLOAD_SIZE_MB}MB")
-        return
+    with col_upload:
+        st.markdown("#### Upload a leaf image")
+        uploaded_file = st.file_uploader(
+            "Drag and drop or browse",
+            type=["jpg", "jpeg", "png"],
+            label_visibility="collapsed",
+        )
 
-    try:
-        validate_upload(uploaded_file.name, uploaded_file.size)
-        image = load_image(uploaded_file)
-    except ImageValidationError as e:
-        st.error(str(e))
-        return
+        if uploaded_file is None:
+            st.caption(f"Supported formats: JPG, PNG, JPEG · Max size: {MAX_UPLOAD_SIZE_MB} MB")
+            return
 
-    st.image(image, caption="Uploaded image", use_container_width=True)
+        try:
+            validate_upload(uploaded_file.name, uploaded_file.size)
+            image = load_image(uploaded_file)
+        except ImageValidationError as e:
+            st.error(str(e))
+            return
 
-    if not st.button("🔍 Analyze", type="primary"):
-        return
+        st.image(image, use_container_width=True)
+        analyze = st.button("🔍 Analyze", type="primary", use_container_width=True)
 
-    try:
-        predictor = get_predictor()
-    except FileNotFoundError as e:
-        st.error(str(e))
-        return
+    with col_result:
+        if not uploaded_file:
+            return
 
-    with st.spinner("Analyzing leaf..."):
-        result = predictor.predict(image, top_k=3)
+        if not analyze:
+            st.markdown("""
+            <div style="height:100%; display:flex; align-items:center; justify-content:center;
+                        color:#aaa; font-size:1rem; padding-top:4rem; text-align:center;">
+                Upload an image and click <strong>Analyze</strong><br>to see the results here.
+            </div>
+            """, unsafe_allow_html=True)
+            return
 
-    render_result(result)
+        try:
+            predictor = get_predictor()
+        except FileNotFoundError as e:
+            st.error(str(e))
+            return
+
+        with st.spinner("Analyzing leaf..."):
+            result = predictor.predict(image, top_k=3)
+
+        render_result(result)
 
 
 def batch_tab():
     uploaded_files = st.file_uploader(
-        "Choose leaf images",
+        "Upload multiple leaf images",
         type=["jpg", "jpeg", "png"],
         accept_multiple_files=True,
+        label_visibility="collapsed",
     )
 
     if not uploaded_files:
-        st.info(f"Upload multiple images to process them as a batch. Max size per file: {MAX_UPLOAD_SIZE_MB}MB")
+        st.markdown("#### Upload multiple leaf images")
+        st.caption(f"All files are processed in sequence. Max size per file: {MAX_UPLOAD_SIZE_MB} MB")
         return
 
+    st.markdown(f"**{len(uploaded_files)} image(s) ready.**")
     if not st.button("🔍 Analyze All", type="primary"):
         return
 
@@ -138,7 +265,7 @@ def batch_tab():
     progress.empty()
 
     df = pd.DataFrame(rows)
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, use_container_width=True, hide_index=True)
 
     csv_bytes = df.to_csv(index=False).encode("utf-8")
     st.download_button(
@@ -150,10 +277,16 @@ def batch_tab():
 
 
 def main():
-    st.title("🌿 Plant Disease Detector")
-    st.write("Upload a photo of a plant leaf to identify possible diseases.")
+    st.markdown("""
+    <div class="app-header">
+        <h1>🌿 Plant Disease Detector</h1>
+        <p>Upload a leaf photograph to identify diseases across 38 categories and 14 plant species.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-    tab_single, tab_batch = st.tabs(["Single Image", "Batch Processing"])
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    tab_single, tab_batch = st.tabs(["🔎 Single Image", "📦 Batch Processing"])
     with tab_single:
         single_image_tab()
     with tab_batch:
